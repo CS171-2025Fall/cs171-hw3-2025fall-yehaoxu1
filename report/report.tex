@@ -23,10 +23,10 @@
 \lstset{basicstyle=\ttfamily}
 
 % Title portion
-\title{Assignment 1:\\ {Exploring OpenGL Programming}} 
+\title{Assignment 3:\\ {Basic Ray Tracing}} 
 
-\author{Name: \quad \\ student number:\
-\\email: \quad \texttt{}}
+\author{Name: Ye Haoxu \\ student number: 2023533137 \\
+email: \quad \texttt{}}
 
 % Document starts
 \begin{document}
@@ -35,8 +35,56 @@
 \vspace*{2 ex}
 
 \section{Introduction}
+
+This assignment implements a basic ray tracing renderer in C++ for CS171. The renderer supports essential features including bounding volume hierarchies (BVH) for acceleration, ray-triangle and ray-AABB intersections, direct lighting with shadow rays, and refraction through transparent materials using Snell's law. The implementation is based on the provided framework and includes an IntersectionTestIntegrator for rendering scenes with diffuse and refractive objects. Scenes are defined in JSON format, and the renderer outputs EXR images for visualization.
+
 \section{Implementation Details}
+
+\subsection{Bounding Volume Hierarchy (BVH)}
+
+The BVH is implemented in \texttt{include/rdr/bvh\_tree.h} and \texttt{src/bvh\_accel.cpp}. The \texttt{BVHTree::build} function constructs the tree using a median heuristic for splitting along the longest axis. The stop criteria are a maximum depth of 20 and a minimum of 4 primitives per leaf. The build process recursively partitions primitives into left and right subtrees.
+
+\subsection{Ray-Primitive Intersections}
+
+Ray-triangle intersections are implemented using the Möller-Trumbore algorithm in \texttt{src/accel.cpp}, function \texttt{TriangleIntersect}. It computes barycentric coordinates and checks for valid intersections within the time window.
+
+Ray-AABB intersections use the slab method in \texttt{AABB::intersect}, also in \texttt{accel.cpp}. It finds the entry and exit times along each axis and determines if the ray intersects the box.
+
+\subsection{Integrator}
+
+The \texttt{IntersectionTestIntegrator} in \texttt{src/integrator.cpp} handles direct lighting and refraction. The \texttt{Li} function traces rays, handling refraction through transparent objects and computing direct lighting from point lights with shadow rays.
+
+For refraction, it uses the \texttt{PerfectRefraction} BSDF, which implements Snell's law. The \texttt{sample} function computes the refracted direction based on the incident direction, normal, and refractive indices. It handles entering and exiting media correctly.
+
+Direct lighting computes the contribution from point lights, checking for occlusion with shadow rays.
+
+\subsection{Scene and Rendering}
+
+Scenes are loaded from JSON files in \texttt{data/}. The renderer uses OpenMP for parallel rendering and outputs EXR images. Anti-aliasing is implemented by supersampling.
+
 \section{Results}
+
+\subsection{Tests}
+
+All mandatory tests pass, including \texttt{intersection\_tests} and \texttt{bvh\_tests}. The BVH correctly accelerates ray tracing, and intersections handle time windows properly. Refraction is implemented with correct Snell's law application, avoiding total internal reflection issues.
+
+\subsection{Rendering}
+
+The renderer produces correct EXR outputs for various scenes:
+
+- \texttt{cbox\_no\_light.exr}: Cornell box with diffuse surfaces and direct lighting.
+- \texttt{cbox\_no\_light\_refract.exr}: Includes refraction through glass spheres.
+- Other scenes like \texttt{glass\_sphere.exr} demonstrate refraction and lighting.
+
+Renders show proper shadows, reflections, and refraction. Lighting intensities were adjusted in JSON files (e.g., \texttt{point\_light\_flux} set to [8.5, 6.0, 2.5]) for realistic appearance.
+
+% If images are available, add figures here
+% \begin{figure}
+% \includegraphics[width=0.5\textwidth]{data/cbox_no_light.exr}
+% \caption{Cornell box render}
+% \end{figure}
+
+The implementation successfully completes all HW3 requirements.
 
 \end{document}
 

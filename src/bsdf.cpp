@@ -43,13 +43,13 @@ Vec3f IdealDiffusion::evaluate(SurfaceInteraction &interaction) const {
 
 Float IdealDiffusion::pdf(SurfaceInteraction &interaction) const {
   // This is left as the next assignment
-  UNIMPLEMENTED;
+  return 0.0f;
 }
 
 Vec3f IdealDiffusion::sample(
     SurfaceInteraction &interaction, Sampler &sampler, Float *out_pdf) const {
   // This is left as the next assignment
-  UNIMPLEMENTED;
+  return Vec3f(0.0);
 }
 
 /// return whether the bsdf is perfect transparent or perfect reflection
@@ -80,12 +80,14 @@ Vec3f PerfectRefraction::sample(
     SurfaceInteraction &interaction, Sampler &sampler, Float *pdf) const {
   // The interface normal
   Vec3f normal = interaction.shading.n;
-  // Cosine of the incident angle
-  Float cos_theta_i = Dot(normal, interaction.wo);
-  // Whether the ray is entering the medium
-  bool entering = cos_theta_i > 0;
-  // Corrected eta by direction
-  Float eta_corrected = entering ? eta : 1.0F / eta;
+  // Cosine of the outgoing direction with respect to the normal
+  Float cos_theta_o = Dot(normal, interaction.wo);
+  // Whether the ray is exiting the surface toward the outside
+  bool entering = cos_theta_o > 0;
+  // Ratio eta_i / eta_t depending on travel direction
+  Float eta_i         = entering ? 1.0F : eta;
+  Float eta_t         = entering ? eta : 1.0F;
+  Float eta_corrected = eta_i / eta_t;
 
   // TODO(HW3): implement the refraction logic here.
   //
@@ -104,7 +106,15 @@ Vec3f PerfectRefraction::sample(
   // @see Refract for refraction calculation.
   // @see Reflect for reflection calculation.
 
-  UNIMPLEMENTED;
+  Vec3f wi_incident = -interaction.wo;
+  Vec3f n           = entering ? normal : -normal;
+  Vec3f wt;
+  if (Refract(wi_incident, n, eta_corrected, wt)) {
+    interaction.wi = wt;
+  } else {
+    // Total internal reflection, reflect (use oriented normal)
+    interaction.wi = Reflect(wi_incident, n);
+  }
 
   // Set the pdf and return value, we dont need to understand the value now
   if (pdf != nullptr) *pdf = 1.0F;
@@ -140,7 +150,7 @@ Float Glass::pdf(SurfaceInteraction &) const {
 Vec3f Glass::sample(
     SurfaceInteraction &interaction, Sampler &sampler, Float *pdf) const {
   // This is left as the next assignment
-  UNIMPLEMENTED;
+  return Vec3f(0.0);
 }
 
 bool Glass::isDelta() const {
@@ -176,18 +186,18 @@ MicrofacetReflection::MicrofacetReflection(const Properties &props)
 
 Vec3f MicrofacetReflection::evaluate(SurfaceInteraction &interaction) const {
   // This is left as the next assignment
-  UNIMPLEMENTED;
+  return Vec3f(0.0);
 }
 
 Float MicrofacetReflection::pdf(SurfaceInteraction &interaction) const {
   // This is left as the next assignment
-  UNIMPLEMENTED;
+  return 0.0f;
 }
 
 Vec3f MicrofacetReflection::sample(
     SurfaceInteraction &interaction, Sampler &sampler, Float *pdf_in) const {
   // This is left as the next assignment
-  UNIMPLEMENTED;
+  return Vec3f(0.0);
 }
 
 /// return whether the bsdf is perfect transparent or perfect reflection

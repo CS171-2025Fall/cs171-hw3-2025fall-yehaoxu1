@@ -5,6 +5,8 @@
 #ifndef __BVH_TREE_H__
 #define __BVH_TREE_H__
 
+#include <algorithm>
+
 #include "rdr/accel.h"
 #include "rdr/platform.h"
 #include "rdr/primitive.h"
@@ -143,8 +145,8 @@ typename BVHTree<_>::IndexType BVHTree<_>::build(
   // @see span_left: The left index of the current span
   // @see span_right: The right index of the current span
   //
-  /* if ( */ UNIMPLEMENTED; /* ) */
-  {
+  IndexType span_size = span_right - span_left;
+  if (span_size <= 1 || depth >= CUTOFF_DEPTH) {
     // create leaf node
     const auto &node = nodes[span_left];
     InternalNode result(span_left, span_right);
@@ -181,7 +183,14 @@ use_median_heuristic:
     //
     // You may find `std::nth_element` useful here.
 
-    UNIMPLEMENTED;
+    auto begin = nodes.begin() + span_left;
+    auto mid   = nodes.begin() + split;
+    auto end   = nodes.begin() + span_right;
+    std::nth_element(begin, mid, end, [dim](const NodeType &lhs,
+                                         const NodeType &rhs) {
+      return lhs.getAABB().getCenter()[dim] <
+             rhs.getAABB().getCenter()[dim];
+    });
 
     // clang-format on
   } else if (hprofile == EHeuristicProfile::ESurfaceAreaHeuristic) {
@@ -199,7 +208,9 @@ use_surface_area_heuristic:
     //
     // You can then set @see BVHTree::hprofile to ESurfaceAreaHeuristic to
     // enable this feature.
-    UNIMPLEMENTED;
+    //
+    // Fallback to median heuristic for now.
+    goto use_median_heuristic;
   }
 
   // Build the left and right subtree

@@ -316,23 +316,29 @@ enum class EMeasure {
 };
 
 RDR_FORCEINLINE Vec2f UniformSampleDisk(const Vec2f &u) {
-  // This is left as the next assignment
-  UNIMPLEMENTED;
+  Float r     = std::sqrt(u.x);
+  Float theta = 2 * PI * u.y;
+  return Vec2f(r * std::cos(theta), r * std::sin(theta));
 }
 
 RDR_FORCEINLINE Vec3f UniformSampleHemisphere(const Vec2f &u) {
-  // This is left as the next assignment
-  UNIMPLEMENTED;
+  Float z   = u.x;
+  Float r   = std::sqrt(std::max(0.f, 1 - z * z));
+  Float phi = 2 * PI * u.y;
+  return Vec3f(r * std::cos(phi), r * std::sin(phi), z);
 }
 
 RDR_FORCEINLINE Vec3f CosineSampleHemisphere(const Vec2f &u) {
-  // This is left as the next assignment
-  UNIMPLEMENTED;
+  Vec2f d = UniformSampleDisk(u);
+  Float z = std::sqrt(std::max(0.f, 1 - d.x * d.x - d.y * d.y));
+  return Vec3f(d.x, d.y, z);
 }
 
 RDR_FORCEINLINE Vec3f UniformSampleSphere(const Vec2f &u) {
-  // This is left as the next assignment
-  UNIMPLEMENTED;
+  Float cos_theta = 1 - 2 * u.x;
+  Float sin_theta = std::sqrt(std::max(0.f, 1 - cos_theta * cos_theta));
+  Float phi       = 2 * PI * u.y;
+  return Vec3f(sin_theta * std::cos(phi), sin_theta * std::sin(phi), cos_theta);
 }
 
 RDR_FORCEINLINE Vec3f UniformSampleTriangle(const Vec2f &u) {

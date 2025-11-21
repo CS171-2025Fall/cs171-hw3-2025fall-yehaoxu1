@@ -30,20 +30,41 @@ bool AABB::isOverlap(const AABB &other) const {
 }
 
 bool AABB::intersect(const Ray &ray, Float *t_in, Float *t_out) const {
-  // TODO(HW3): implement ray intersection with AABB.
-  // ray distance for two intersection points are returned by pointers.
-  //
-  // This method should modify t_in and t_out as the "time"
-  // when the ray enters and exits the AABB respectively.
-  //
-  // And return true if there is an intersection, false otherwise.
-  //
-  // Useful Functions:
-  // @see Ray::safe_inverse_direction
-  //    for getting the inverse direction of the ray.
-  // @see Min/Max/ReduceMin/ReduceMax
-  //    for vector min/max operations.
-  UNIMPLEMENTED;
+  // Slab method using ray.safe_inverse_direction (precomputed reciprocal
+  // direction that handles near-zero components).
+  // Compute intersection interval [t_enter, t_exit] across all three axes.
+  Float t_enter = -Float_INF;
+  Float t_exit  = Float_INF;
+
+  const Vec3f &o    = ray.origin;
+  const Vec3f &invd = ray.safe_inverse_direction;
+
+  for (int i = 0; i < 3; ++i) {
+    // compute t values where ray crosses the two planes for this axis
+    Float t1 = (low_bnd[i] - o[i]) * invd[i];
+    Float t2 = (upper_bnd[i] - o[i]) * invd[i];
+
+    Float t_near = std::min(t1, t2);
+    Float t_far  = std::max(t1, t2);
+
+    t_enter = std::max(t_enter, t_near);
+    t_exit  = std::min(t_exit, t_far);
+
+    // Early exit: if intervals no longer overlap
+    if (t_enter > t_exit) return false;
+  }
+
+  // Clamp against ray time window
+  Float t0 = std::max(t_enter, ray.t_min);
+  Float t1 = std::min(t_exit, ray.t_max);
+
+  if (t0 <= t1) {
+    if (t_in) *t_in = t0;
+    if (t_out) *t_out = t1;
+    return true;
+  }
+
+  return false;
 }
 
 /* ===================================================================== *
@@ -91,11 +112,39 @@ bool TriangleIntersect(Ray &ray, const uint32_t &triangle_index,
   // Useful Functions:
   // You can use @see Cross and @see Dot for determinant calculations.
 
-  // Delete the following lines after you implement the function
-  InternalScalarType u = InternalScalarType(0);
-  InternalScalarType v = InternalScalarType(0);
-  InternalScalarType t = InternalScalarType(0);
-  UNIMPLEMENTED;
+  // Moller-Trumbore algorithm (stable) implemented in double precision.
+  const InternalVecType edge1 = v1 - v0;
+  const InternalVecType edge2 = v2 - v0;
+
+  const InternalVecType pvec   = Cross(dir, edge2);
+  const InternalScalarType det = Dot(edge1, pvec);
+
+  // If the determinant is near zero, ray lies in plane of triangle or is
+  // parallel to it.
+  if (abs(det) < InternalScalarType(EPS)) return false;
+
+  const InternalScalarType invDet = InternalScalarType(1) / det;
+
+  const InternalVecType tvec  = Cast<InternalScalarType>(ray.origin) - v0;
+  const InternalScalarType uu = Dot(tvec, pvec) * invDet;
+  if (uu < InternalScalarType(0) || uu > InternalScalarType(1)) return false;
+
+  const InternalVecType qvec  = Cross(tvec, edge1);
+  const InternalScalarType vv = Dot(dir, qvec) * invDet;
+  if (vv < InternalScalarType(0) || uu + vv > InternalScalarType(1))
+    return false;
+
+  const InternalScalarType tt = Dot(edge2, qvec) * invDet;
+
+  // Check ray parametric range
+  if (!(tt >= InternalScalarType(ray.t_min) &&
+          tt <= InternalScalarType(ray.t_max)))
+    return false;
+
+  // assign results back to expected names
+  InternalScalarType u = uu;
+  InternalScalarType v = vv;
+  InternalScalarType t = tt;
 
   // We will reach here if there is an intersection
 
