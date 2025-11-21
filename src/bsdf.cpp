@@ -80,15 +80,14 @@ Vec3f PerfectRefraction::sample(
     SurfaceInteraction &interaction, Sampler &sampler, Float *pdf) const {
   // The interface normal
   Vec3f normal = interaction.shading.n;
-  // Cosine of the outgoing direction with respect to the normal
-  Float cos_theta_o = Dot(normal, interaction.wo);
-  // Whether the ray is exiting the surface toward the outside
-  bool entering = cos_theta_o > 0;
-  // Ratio eta_i / eta_t depending on travel direction
-  Float eta_i         = entering ? 1.0F : eta;
-  Float eta_t         = entering ? eta : 1.0F;
-  Float eta_corrected = eta_i / eta_t;
-
+  // Incident direction points toward the surface
+  Vec3f wi_incident = -interaction.wo;
+  // Determine whether the ray is entering the medium
+  bool entering = Dot(wi_incident, normal) > 0;
+  // Use an oriented normal that always points against the incident ray
+  Vec3f oriented_normal = entering ? normal : -normal;
+  // Ratio of indices of refraction based on the current medium transition
+  Float eta_corrected = entering ? (1.0F / eta) : eta;
   // TODO(HW3): implement the refraction logic here.
   //
   // You should set the `interaction.wi` to the direction of the "in-coming
@@ -105,15 +104,12 @@ Vec3f PerfectRefraction::sample(
   // You may find the following functions useful:
   // @see Refract for refraction calculation.
   // @see Reflect for reflection calculation.
-
-  Vec3f wi_incident = -interaction.wo;
-  Vec3f n           = entering ? normal : -normal;
-  Vec3f wt;
-  if (Refract(wi_incident, n, eta_corrected, wt)) {
-    interaction.wi = wt;
+  Vec3f refracted;
+  if (Refract(wi_incident, oriented_normal, eta_corrected, refracted)) {
+    interaction.wi = Normalize(refracted);
   } else {
-    // Total internal reflection, reflect (use oriented normal)
-    interaction.wi = Reflect(wi_incident, n);
+    // Total internal reflection, reflect about the oriented normal
+    interaction.wi = Normalize(Reflect(wi_incident, oriented_normal));
   }
 
   // Set the pdf and return value, we dont need to understand the value now

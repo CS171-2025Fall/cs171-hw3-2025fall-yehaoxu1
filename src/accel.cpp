@@ -30,41 +30,22 @@ bool AABB::isOverlap(const AABB &other) const {
 }
 
 bool AABB::intersect(const Ray &ray, Float *t_in, Float *t_out) const {
-  // Slab method using ray.safe_inverse_direction (precomputed reciprocal
-  // direction that handles near-zero components).
-  // Compute intersection interval [t_enter, t_exit] across all three axes.
-  Float t_enter = -Float_INF;
-  Float t_exit  = Float_INF;
+  Vec3f inv_dir = ray.safe_inverse_direction;
 
-  const Vec3f &o    = ray.origin;
-  const Vec3f &invd = ray.safe_inverse_direction;
+  Vec3f t0 = (low_bnd - ray.origin) * inv_dir;
+  Vec3f t1 = (upper_bnd - ray.origin) * inv_dir;
 
-  for (int i = 0; i < 3; ++i) {
-    // compute t values where ray crosses the two planes for this axis
-    Float t1 = (low_bnd[i] - o[i]) * invd[i];
-    Float t2 = (upper_bnd[i] - o[i]) * invd[i];
+  Vec3f t_enter     = Min(t0, t1);
+  Vec3f t_exit      = Max(t0, t1);
+  Float t_enter_max = ReduceMax(t_enter);
+  Float t_exit_min  = ReduceMin(t_exit);
 
-    Float t_near = std::min(t1, t2);
-    Float t_far  = std::max(t1, t2);
+  if (t_exit_min < 0) return false;
+  if (t_enter_max > t_exit_min) return false;
 
-    t_enter = std::max(t_enter, t_near);
-    t_exit  = std::min(t_exit, t_far);
-
-    // Early exit: if intervals no longer overlap
-    if (t_enter > t_exit) return false;
-  }
-
-  // Clamp against ray time window
-  Float t0 = std::max(t_enter, ray.t_min);
-  Float t1 = std::min(t_exit, ray.t_max);
-
-  if (t0 <= t1) {
-    if (t_in) *t_in = t0;
-    if (t_out) *t_out = t1;
-    return true;
-  }
-
-  return false;
+  if (t_in != nullptr) *t_in = t_enter_max;
+  if (t_out != nullptr) *t_out = t_exit_min;
+  return true;
 }
 
 /* ===================================================================== *
@@ -112,16 +93,13 @@ bool TriangleIntersect(Ray &ray, const uint32_t &triangle_index,
   // Useful Functions:
   // You can use @see Cross and @see Dot for determinant calculations.
 
-  // Moller-Trumbore algorithm (stable) implemented in double precision.
-  const InternalVecType edge1 = v1 - v0;
-  const InternalVecType edge2 = v2 - v0;
-
+  const InternalVecType edge1  = v1 - v0;
+  const InternalVecType edge2  = v2 - v0;
   const InternalVecType pvec   = Cross(dir, edge2);
   const InternalScalarType det = Dot(edge1, pvec);
+  const InternalScalarType eps = InternalScalarType(1.0000e-12);
 
-  // If the determinant is near zero, ray lies in plane of triangle or is
-  // parallel to it.
-  if (abs(det) < InternalScalarType(EPS)) return false;
+  if (abs(det) < eps) return false;
 
   const InternalScalarType invDet = InternalScalarType(1) / det;
 

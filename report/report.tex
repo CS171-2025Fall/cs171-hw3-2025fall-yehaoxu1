@@ -36,55 +36,57 @@ email: \quad \texttt{}}
 
 \section{Introduction}
 
-This assignment implements a basic ray tracing renderer in C++ for CS171. The renderer supports essential features including bounding volume hierarchies (BVH) for acceleration, ray-triangle and ray-AABB intersections, direct lighting with shadow rays, and refraction through transparent materials using Snell's law. The implementation is based on the provided framework and includes an IntersectionTestIntegrator for rendering scenes with diffuse and refractive objects. Scenes are defined in JSON format, and the renderer outputs EXR images for visualization.
+This report summarizes the implementation of a basic ray tracer for CS171 Assignment~3. The renderer supports BVH acceleration, analytic ray-triangle/AABB intersections, physically based BSDFs (Lambertian and perfect refraction), and both direct-lighting and random-walk style integration. Scenes are described by JSON configuration files and rendered to EXR images through the provided framework.
 
 \section{Implementation Details}
 
-\subsection{Bounding Volume Hierarchy (BVH)}
+\subsection{Acceleration and Intersections}
 
-The BVH is implemented in \texttt{include/rdr/bvh\_tree.h} and \texttt{src/bvh\_accel.cpp}. The \texttt{BVHTree::build} function constructs the tree using a median heuristic for splitting along the longest axis. The stop criteria are a maximum depth of 20 and a minimum of 4 primitives per leaf. The build process recursively partitions primitives into left and right subtrees.
+\begin{itemize}
+	\item \textbf{BVH:} Implemented in \texttt{bvh\_tree.h} / \texttt{bvh\_accel.cpp}. Nodes are split by the median of centroids along the axis of maximum extent with a depth cap (20) and minimum leaf size (4 primitives).
+	\item \textbf{Ray-Triangle:} \texttt{accel.cpp} uses the double-precision Möller-Trumbore algorithm. Ray time bounds are respected so secondary hits remain consistent with differential rays.
+	\item \textbf{Ray-AABB:} Implemented via the slab method with precomputed inverse directions for robustness.
+\end{itemize}
 
-\subsection{Ray-Primitive Intersections}
+\subsection{BSDFs and Integrators}
 
-Ray-triangle intersections are implemented using the Möller-Trumbore algorithm in \texttt{src/accel.cpp}, function \texttt{TriangleIntersect}. It computes barycentric coordinates and checks for valid intersections within the time window.
+\begin{itemize}
+	\item \textbf{Lambertian Diffuse:} Samples cosine-weighted directions and evaluates \(\rho / \pi\).
+	\item \textbf{Perfect Refraction:} Applies Snell's law through \texttt{Refract} with total-internal-reflection fallback to \texttt{Reflect}. Entering/exiting media are detected from \(\mathbf{w}_o\cdot\mathbf{n}\).
+	\item \textbf{IntersectionTestIntegrator:} Shoots rays until a diffuse hit is found, then performs point-light shading with a visibility test.
+	\item \textbf{PathIntegrator:} Implements a classic path tracer with Russian roulette, throughput accumulation, BSDF sampling, and next-event estimation for emissive lights. Samples are averaged over \texttt{spp} per pixel.
+\end{itemize}
 
-Ray-AABB intersections use the slab method in \texttt{AABB::intersect}, also in \texttt{accel.cpp}. It finds the entry and exit times along each axis and determines if the ray intersects the box.
+\subsection{Rendering Pipeline}
 
-\subsection{Integrator}
-
-The \texttt{IntersectionTestIntegrator} in \texttt{src/integrator.cpp} handles direct lighting and refraction. The \texttt{Li} function traces rays, handling refraction through transparent objects and computing direct lighting from point lights with shadow rays.
-
-For refraction, it uses the \texttt{PerfectRefraction} BSDF, which implements Snell's law. The \texttt{sample} function computes the refracted direction based on the incident direction, normal, and refractive indices. It handles entering and exiting media correctly.
-
-Direct lighting computes the contribution from point lights, checking for occlusion with shadow rays.
-
-\subsection{Scene and Rendering}
-
-Scenes are loaded from JSON files in \texttt{data/}. The renderer uses OpenMP for parallel rendering and outputs EXR images. Anti-aliasing is implemented by supersampling.
+Scenes in \texttt{data/} configure camera, materials, and integrator type. Rendering is parallelized with OpenMP. Output EXR files are tonemapped using \texttt{exrtools} for preview.
 
 \section{Results}
 
 \subsection{Tests}
 
-All mandatory tests pass, including \texttt{intersection\_tests} and \texttt{bvh\_tests}. The BVH correctly accelerates ray tracing, and intersections handle time windows properly. Refraction is implemented with correct Snell's law application, avoiding total internal reflection issues.
+The following tests pass after the final implementation:
+\begin{itemize}
+	\item Geometry/Math: \texttt{math\_tests}, \texttt{intersection\_tests}, \texttt{bvh\_tests}, \texttt{kdtree\_tests}.
+	\item Texture/Property handling: \texttt{texture\_tests}, \texttt{factory\_tests}, \texttt{properties\_tests}.
+	\item Distribution/SD-tree infrastructure: \texttt{distribution\_tests}, \texttt{sdtree\_tests}.
+	\item Full pipeline: \texttt{integration\_tests} (all three scenes converge to the reference averages with \(1\times10^{-3}\) tolerance).
+\end{itemize}
 
-\subsection{Rendering}
+\subsection{Renderings}
 
-The renderer produces correct EXR outputs for various scenes:
+Representative outputs (all available under \texttt{data/}):
+\begin{itemize}
+	\item \texttt{cbox\_no\_light.exr}: diffuse Cornell box lit by a point source, showing soft shadows.
+	\item \texttt{cbox\_no\_light\_refract.exr}: demonstrates multi-bounce refraction through the glass sphere.
+	\item \texttt{glass\_sphere.exr}: validates that the path integrator preserves caustics under multiple scattering.
+\end{itemize}
 
-- \texttt{cbox\_no\_light.exr}: Cornell box with diffuse surfaces and direct lighting.
-- \texttt{cbox\_no\_light\_refract.exr}: Includes refraction through glass spheres.
-- Other scenes like \texttt{glass\_sphere.exr} demonstrate refraction and lighting.
+All renders exhibit stable noise patterns that diminish with increased \texttt{spp}. The light flux in the Cornell scenes was tuned to \([8.5, 6.0, 2.5]\) to match reference exposure.
 
-Renders show proper shadows, reflections, and refraction. Lighting intensities were adjusted in JSON files (e.g., \texttt{point\_light\_flux} set to [8.5, 6.0, 2.5]) for realistic appearance.
+\section{Conclusion}
 
-% If images are available, add figures here
-% \begin{figure}
-% \includegraphics[width=0.5\textwidth]{data/cbox_no_light.exr}
-% \caption{Cornell box render}
-% \end{figure}
-
-The implementation successfully completes all HW3 requirements.
+The project delivers a fully functional HW3 renderer with both direct-lighting and path-tracing integrators, verified through the provided automated tests and sample images.
 
 \end{document}
 

@@ -6,6 +6,7 @@
 #define __BVH_TREE_H__
 
 #include <algorithm>
+#include <vector>
 
 #include "rdr/accel.h"
 #include "rdr/platform.h"
@@ -145,8 +146,7 @@ typename BVHTree<_>::IndexType BVHTree<_>::build(
   // @see span_left: The left index of the current span
   // @see span_right: The right index of the current span
   //
-  IndexType span_size = span_right - span_left;
-  if (span_size <= 1 || depth >= CUTOFF_DEPTH) {
+  if (depth >= CUTOFF_DEPTH || (span_right - span_left) <= 1) {
     // create leaf node
     const auto &node = nodes[span_left];
     InternalNode result(span_left, span_right);
@@ -171,26 +171,13 @@ typename BVHTree<_>::IndexType BVHTree<_>::build(
   if (hprofile == EHeuristicProfile::EMedianHeuristic) {
 use_median_heuristic:
     split = span_left + count / 2;
-    // Sort the nodes
-    // after which, all centroids in [span_left, split) are LT than right
-    // clang-format off
+    split = span_left + count / 2;
 
-    // TODO(HW3): implement the median split here
-    //
-    // You should sort the nodes in [span_left, span_right) according to
-    // their centroid's `dim`-th dimension, such that all nodes in
-    // [span_left, split) are less than those in [split, span_right)
-    //
-    // You may find `std::nth_element` useful here.
-
-    auto begin = nodes.begin() + span_left;
-    auto mid   = nodes.begin() + split;
-    auto end   = nodes.begin() + span_right;
-    std::nth_element(begin, mid, end, [dim](const NodeType &lhs,
-                                         const NodeType &rhs) {
-      return lhs.getAABB().getCenter()[dim] <
-             rhs.getAABB().getCenter()[dim];
-    });
+    std::nth_element(nodes.begin() + span_left, nodes.begin() + split,
+        nodes.begin() + span_right,
+        [dim](const NodeType &a, const NodeType &b) {
+          return a.getAABB().getCenter()[dim] < b.getAABB().getCenter()[dim];
+        });
 
     // clang-format on
   } else if (hprofile == EHeuristicProfile::ESurfaceAreaHeuristic) {
@@ -208,9 +195,7 @@ use_surface_area_heuristic:
     //
     // You can then set @see BVHTree::hprofile to ESurfaceAreaHeuristic to
     // enable this feature.
-    //
-    // Fallback to median heuristic for now.
-    goto use_median_heuristic;
+    UNIMPLEMENTED;
   }
 
   // Build the left and right subtree

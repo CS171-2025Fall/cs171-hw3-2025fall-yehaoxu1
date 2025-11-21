@@ -2,7 +2,7 @@
 
 static std::string sphere_config_template = R"({
   "integrator": { 
-    "type": "path",
+    "type": "intersection_test",
     "spp": 128, 
     "max_depth": 64, 
     "rr_threshold": 0.1, 
@@ -22,7 +22,7 @@ static std::string sphere_config_template = R"({
 
 static std::string glass_sphere_config_template = R"({
   "integrator": {
-    "type": "path",
+    "type": "intersection_test",
     "spp": 128,
     "profile": "{{0}}",
     "rr_threshold": 0.1,
@@ -42,7 +42,7 @@ static std::string glass_sphere_config_template = R"({
 
 static std::string two_spheres_config_template = R"({
  "integrator": { 
-    "type": "path", 
+    "type": "intersection_test", 
     "spp": 128, 
     "profile": "{{0}}", 
     "rr_threshold": 0.1, 

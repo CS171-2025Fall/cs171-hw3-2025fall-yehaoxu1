@@ -39,15 +39,15 @@ void IntersectionTestIntegrator::render(ref<Camera> camera, ref<Scene> scene) {
     for (int dy = 0; dy < resolution.y; dy++) {
       sampler.setPixelIndex2D(Vec2i(dx, dy));
       for (int sample = 0; sample < spp; sample++) {
-        const Vec2f pixel_sample = sampler.getPixelSample();
+        const Vec2f &pixel_sample = sampler.getPixelSample();
+
         auto ray =
             camera->generateDifferentialRay(pixel_sample.x, pixel_sample.y);
 
-        // Accumulate radiance
         assert(pixel_sample.x >= dx && pixel_sample.x <= dx + 1);
         assert(pixel_sample.y >= dy && pixel_sample.y <= dy + 1);
-        const Vec3f &L = Li(scene, ray, sampler);
-        camera->getFilm()->commitSample(pixel_sample, L);
+        const Vec3f &l = Li(scene, ray, sampler);
+        camera->getFilm()->commitSample(pixel_sample, l);
       }
     }
   }
@@ -55,74 +55,71 @@ void IntersectionTestIntegrator::render(ref<Camera> camera, ref<Scene> scene) {
 
 Vec3f IntersectionTestIntegrator::Li(
     ref<Scene> scene, DifferentialRay &ray, Sampler &sampler) const {
+  Vec3f color(0.0);
+
+  // Cast a ray until we hit a non-specular surface or miss
+  // Record whether we have found a diffuse surface
+  bool diffuse_found = false;
   SurfaceInteraction interaction;
 
-  for (int depth = 0; depth < max_depth; ++depth) {
-    interaction = SurfaceInteraction();
-    if (!scene->intersect(ray, interaction)) {
-      return Vec3f(0.0);
-    }
+  for (int i = 0; i < max_depth; ++i) {
+    interaction      = SurfaceInteraction();
+    bool intersected = scene->intersect(ray, interaction);
 
-    interaction.wo   = -ray.direction;
     const BSDF *bsdf = interaction.bsdf;
-    if (bsdf == nullptr) return Vec3f(0.0);
 
-    const bool is_ideal_diffuse =
+    // Perform RTTI to determine the type of the surface
+    bool is_ideal_diffuse =
         dynamic_cast<const IdealDiffusion *>(bsdf) != nullptr;
-    const bool is_perfect_refraction =
+    bool is_perfect_refraction =
         dynamic_cast<const PerfectRefraction *>(bsdf) != nullptr;
 
+    // Set the outgoing direction
+    interaction.wo = -ray.direction;
+
+    if (!intersected) {
+      break;
+    }
+
     if (is_perfect_refraction) {
-      Float pdf = 0.0f;
+      Float pdf = 1.0F;
       bsdf->sample(interaction, sampler, &pdf);
-      Ray refracted_ray = interaction.spawnRay(interaction.wi);
-      ray               = refracted_ray;
+      ray = interaction.spawnRay(interaction.wi);
       continue;
     }
 
     if (is_ideal_diffuse) {
-      return directLighting(scene, interaction);
+      // We only consider diffuse surfaces for direct lighting
+      diffuse_found = true;
+      break;
     }
 
-    // Unsupported surfaces terminate the path in this simple integrator.
+    // We simply omit any other types of surfaces
     break;
   }
 
-  return Vec3f(0.0);
+  if (!diffuse_found) {
+    return color;
+  }
+
+  color = directLighting(scene, interaction);
+  return color;
 }
 
 Vec3f IntersectionTestIntegrator::directLighting(
     ref<Scene> scene, SurfaceInteraction &interaction) const {
   Vec3f color(0, 0, 0);
   Vec3f to_light       = point_light_position - interaction.p;
-  Float dist2_to_light = Dot(to_light, to_light);
-  Float dist_to_light  = std::sqrt(std::max(dist2_to_light, 1e-12f));
+  Float dist_to_light2 = Dot(to_light, to_light);
+  Float dist_to_light  = std::sqrt(std::max(dist_to_light2, 1e-12F));
   Vec3f light_dir      = to_light / dist_to_light;
 
-  // TODO(HW3): Test for occlusion
-  //
-  // You should test if there is any intersection between interaction.p and
-  // point_light_position using scene->intersect. If so, return an occluded
-  // color. (or Vec3f color(0, 0, 0) to be specific)
-  //
-  // You may find the following variables useful:
-  //
-  // @see bool Scene::intersect(const Ray &ray, SurfaceInteraction &interaction)
-  //    This function tests whether the ray intersects with any geometry in the
-  //    scene. And if so, it returns true and fills the interaction with the
-  //    intersection information.
-  //
-  //    You can use iteraction.p to get the intersection position.
-  //
-  // Spawn a shadow ray toward the point light and clamp its t_max to the
-  // distance to the light via spawnRayTo. If any intersection occurs, the
-  // light is occluded.
-  {
-    SurfaceInteraction tmp;
-    Ray shadow = interaction.spawnRayTo(point_light_position);
-    if (scene->intersect(shadow, tmp)) {
-      return color;  // occluded
-    }
+  // Perform shadow detection using an offset shadow ray toward the point
+  // light to avoid self-intersection artifacts.
+  SurfaceInteraction shadow_isect;
+  Ray shadow_ray = interaction.spawnRayTo(point_light_position);
+  if (scene->intersect(shadow_ray, shadow_isect)) {
+    return Vec3f(0.0F);
   }
 
   // Not occluded, compute the contribution using perfect diffuse diffuse model
@@ -141,14 +138,11 @@ Vec3f IntersectionTestIntegrator::directLighting(
 
     // The angle between light direction and surface normal
     Float cos_theta =
-        std::max(Dot(light_dir, interaction.normal), 0.0f);  // one-sided
+        std::max(Dot(light_dir, interaction.normal), 0.0F);  // one-sided
 
-    // You should assign the value to color
-    interaction.wi    = light_dir;
-    const Vec3f &brdf = bsdf->evaluate(interaction);
-    // simple inverse-square attenuation
-    Float inv_dist2 = 1.0F / std::max(dist2_to_light, 1e-6f);
-    color           = point_light_flux * brdf * cos_theta * inv_dist2;
+    interaction.wi = light_dir;
+    Vec3f brdf     = bsdf->evaluate(interaction);
+    color          = point_light_flux * brdf * cos_theta / dist_to_light2;
   }
 
   return color;
